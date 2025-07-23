@@ -6,7 +6,7 @@
 
 ## Update
 
-1) Full dataset (Initial, intermediate and final optimized AIGs) is hosted at [OpenABC-D](https://app.globus.org/file-manager?origin_id=ae7b03ad-9e50-472c-9601-ff99054ae47c&origin_path=%2F). All relevant bench, graphml, label CSVs and run logs are stored here. The entire zip is 1.4TB so it has been equally divided into 14 chunks, each of 107GB. For downloading and unzipping, minimum of 3TB disk space is required.
+1) Full dataset (Initial, intermediate and final optimized AIGs) is hosted at [OpenABC-D](https://ultraviolet.library.nyu.edu/records/mw6q2-a8p15). All relevant bench, graphml, label CSVs and run logs are stored here. The entire zip is 1.4TB so it has been equally divided into 14 chunks, each of 107GB. For downloading and unzipping, minimum of 3TB disk space is required.
 
 2) ML-ready dataset (Pytorch files for initial AIG and synthesis recipe information + target labels as pickled file ~ 19GB) is hosted [here](https://zenodo.org/record/6399454#.YkTglzwpA5k). All one need is to configure the paths as documented and run the models for QoR prediction.
 
