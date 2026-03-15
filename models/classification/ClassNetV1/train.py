@@ -97,7 +97,7 @@ def main():
     batchSize = args.batch_size  # 64
     num_epochs = args.epochs  # 80
     learning_rate = args.lr  # 0.001
-    learningProblem = args.lp
+    # learningProblem = args.lp
     nodeEmbeddingDim = 3
 
     IS_STATS_AVAILABLE = True
