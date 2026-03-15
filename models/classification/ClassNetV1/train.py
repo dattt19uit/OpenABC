@@ -95,7 +95,7 @@ def main():
 
     # Hyperparameters
     batchSize = args.batch_size  # 64
-    num_epochs = args.epoch  # 80
+    num_epochs = args.epochs  # 80
     learning_rate = args.lr  # 0.001
     learningProblem = args.lp
     nodeEmbeddingDim = 3
