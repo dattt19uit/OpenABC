@@ -3,7 +3,10 @@ import torch
 from zipfile import ZipFile
 
 import pandas as pd
-from torch_geometric.data import Dataset, download_url
+from torch_geometric.data import Data, Dataset, download_url
+
+def bump(g):
+    return Data.from_dict(g.__dict__)
 
 
 class NetlistGraphDataset(Dataset):
@@ -31,4 +34,4 @@ class NetlistGraphDataset(Dataset):
             file_path = potential_path
 
         data = torch.load(file_path)
-        return data
+        return bump(data)
