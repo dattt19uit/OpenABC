@@ -1,4 +1,5 @@
 import torch
+from tqdm import tqdm
 from sklearn.metrics import mean_squared_error,mean_absolute_error
 import matplotlib.pyplot as plt
 import os.path as osp
@@ -41,8 +42,8 @@ def mapMeanChangeToTensor(data,areaStatsDict,delayStatsDict):
 
 # Element 0 is area and 1 is delay
 def getMeanAreaAndDelay(trainDS,testDS):
-    desNamesTrain = set(elem.desName[0] for elem in trainDS)
-    desNamesTest = set(elem.desName[0] for elem in testDS)
+    desNamesTrain = set(elem.desName[0] for elem in tqdm(trainDS, desc="Processing Train DS"))
+    desNamesTest = set(elem.desName[0] for elem in tqdm(testDS, desc="Processing Test DS"))
     desNameTotal = desNamesTrain.union(desNamesTest)
     desStatsArea = {}
     desStatsDelay = {}
@@ -51,10 +52,10 @@ def getMeanAreaAndDelay(trainDS,testDS):
     for des in desNameTotal:
         desStatsArea[des] = []
         desStatsDelay[des] = []
-    for elem in trainDS:
+    for elem in tqdm(trainDS, desc="Aggregating Train Stats"):
         desStatsArea[elem.desName[0]].append(elem.area)
         desStatsDelay[elem.desName[0]].append(elem.delay)
-    for elem in testDS:
+    for elem in tqdm(testDS, desc="Aggregating Test Stats"):
         desStatsArea[elem.desName[0]].append(elem.area)
         desStatsDelay[elem.desName[0]].append(elem.delay)
     for des in desNameTotal:
@@ -114,7 +115,7 @@ def getDevice():
         return 'cpu'
 
 def desName_to_idx(aigData):
-    desNames = [elem.desName[0] for elem in aigData]
+    desNames = [elem.desName[0] for elem in tqdm(aigData, desc="Getting Design Names")]
     desNameIdxDict = {}
     idxDesNameDict = {}
     i=0
