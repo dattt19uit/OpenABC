@@ -22,7 +22,6 @@ class NetlistGraphDataset(Dataset):
     def get(self, idx):
         file_name_zip = self.processed_file_names[idx]
         file_name = osp.splitext(file_name_zip)[0]
-        folder_path = osp.join(self.processed_dir, file_name)
-        file_path = osp.join(folder_path, file_name)
+        file_path = osp.join(self.processed_dir, file_name)
         data = torch.load(file_path)
         return data
