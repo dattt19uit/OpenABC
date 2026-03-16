@@ -156,7 +156,7 @@ def main():
 
     model = SynthNet(node_encoder=node_encoder,synth_encoder=synthesis_encoder,n_classes=num_classes,synth_input_dim=synthFlowEncodingDim,node_input_dim=nodeEmbeddingDim)
     optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate)
-    scheduler = ReduceLROnPlateau(optimizer, 'min',verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, 'min')
     device = getDevice()
     model = model.to(device)
 

@@ -126,7 +126,7 @@ def main():
     # Only node type encoding, Number of inverter edges in predecessor shouldn't be encoded
     model = GNN(node_encoder=node_encoder,n_classes=num_classes,input_dim=nodeEmbeddingDim+1,num_layer=2)
     optimizer = torch.optim.Adam(model.parameters(),lr=learning_rate)
-    scheduler = ReduceLROnPlateau(optimizer, 'min',verbose=True)
+    scheduler = ReduceLROnPlateau(optimizer, 'min')
     device = getDevice()
     model = model.to(device)
 
