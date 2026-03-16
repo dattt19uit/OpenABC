@@ -42,25 +42,34 @@ def mapMeanChangeToTensor(data,areaStatsDict,delayStatsDict):
 
 # Element 0 is area and 1 is delay
 def getMeanAreaAndDelay(trainDS,testDS):
-    desNamesTrain = set(elem.desName[0] for elem in tqdm(trainDS, desc="Processing Train DS"))
-    desNamesTest = set(elem.desName[0] for elem in tqdm(testDS, desc="Processing Test DS"))
-    desNameTotal = desNamesTrain.union(desNamesTest)
     desStatsArea = {}
     desStatsDelay = {}
-    delayStats = {}
+
+    print("Collecting stats from training set...")
+    for elem in tqdm(trainDS):
+        des_name = elem.desName[0]
+        if des_name not in desStatsArea:
+            desStatsArea[des_name] = []
+            desStatsDelay[des_name] = []
+        desStatsArea[des_name].append(elem.area)
+        desStatsDelay[des_name].append(elem.delay)
+
+    print("Collecting stats from test set...")
+    for elem in tqdm(testDS):
+        des_name = elem.desName[0]
+        if des_name not in desStatsArea:
+            desStatsArea[des_name] = []
+            desStatsDelay[des_name] = []
+        desStatsArea[des_name].append(elem.area)
+        desStatsDelay[des_name].append(elem.delay)
+
     areaStats = {}
-    for des in desNameTotal:
-        desStatsArea[des] = []
-        desStatsDelay[des] = []
-    for elem in tqdm(trainDS, desc="Aggregating Train Stats"):
-        desStatsArea[elem.desName[0]].append(elem.area)
-        desStatsDelay[elem.desName[0]].append(elem.delay)
-    for elem in tqdm(testDS, desc="Aggregating Test Stats"):
-        desStatsArea[elem.desName[0]].append(elem.area)
-        desStatsDelay[elem.desName[0]].append(elem.delay)
-    for des in desNameTotal:
+    delayStats = {}
+    print("Calculating area and delay stats...")
+    for des in tqdm(desStatsArea.keys()):
         areaStats[des] = torch.std_mean(torch.tensor(desStatsArea[des]))
         delayStats[des] = torch.std_mean(torch.tensor(desStatsDelay[des]))
+
     return areaStats,delayStats
 
 
@@ -115,15 +124,18 @@ def getDevice():
         return 'cpu'
 
 def desName_to_idx(aigData):
-    desNames = [elem.desName[0] for elem in tqdm(aigData, desc="Getting Design Names")]
+    print("Parsing design names from filenames (fast)...")
+    desNames = [fname.split('_syn')[0] for fname in aigData.processed_file_names]
+
+    unique_desNames = sorted(list(set(desNames)))
+
     desNameIdxDict = {}
     idxDesNameDict = {}
-    i=0
-    for des in desNames:
-        if not des in desNameIdxDict.keys():
-            desNameIdxDict[des] = i
-            idxDesNameDict[i] = des
-            i+=1
+
+    for i, des in enumerate(unique_desNames):
+        desNameIdxDict[des] = i
+        idxDesNameDict[i] = des
+
     return desNameIdxDict,idxDesNameDict
 
 def mapNameToLabel(data,desNameIdxDict):
