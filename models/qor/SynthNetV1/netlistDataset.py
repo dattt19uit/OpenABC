@@ -20,10 +20,9 @@ class NetlistGraphDataset(Dataset):
         return len(self.processed_file_names)
 
     def get(self, idx):
-        file_dir = osp.join(self.processed_dir, self.processed_file_names[idx])
         file_name = self.processed_file_names[idx]
-        file_path = osp.join(file_dir, file_name)
-
+        folder_path = osp.join(self.processed_dir, file_name)
+        file_path = osp.join(folder_path, file_name)
         data = torch.load(file_path)
         return data
 
