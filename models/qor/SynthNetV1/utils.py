@@ -193,7 +193,7 @@ def doScatterPlot(batchLen,batchSize,batchData,dumpDir,trainMode):
         fileName = osp.join(dumpDir,"scatterPlot_"+trainMode+"_"+d+".png")
         #else:
         #    fileName = osp.join(dumpDir,"scatterPlot_test_"+d+".png")
-        plt.savefig(fileName,fmt='png',bbox_inches='tight')
+        plt.savefig(fileName,format='png',bbox_inches='tight')
 
 
 def getTopKSimilarityPercentage(list1,list2,topkpercent):
@@ -242,7 +242,7 @@ def doScatterAndTopKRanking(batchLen,batchSize,batchData,dumpDir,trainMode):
         plt.xlabel('Actual', weight='bold', fontsize=25)
         plt.ylabel('Predicted', weight='bold', fontsize=25)
         fileName = osp.join(dumpDir,"scatterPlot_"+trainMode+"_"+d+".png")
-        plt.savefig(fileName,fmt='png',bbox_inches='tight')
+        plt.savefig(fileName,format='png',bbox_inches='tight')
         desDF1 = designDF.sort_values(by=['actual'])
         desDF2 = designDF.sort_values(by=['prediction'])
         desDF1_synID = desDF1.synID.to_list()

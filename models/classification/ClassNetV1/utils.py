@@ -186,7 +186,7 @@ def doScatterPlot(batchLen,batchSize,batchData,dumpDir,trainMode):
         fileName = osp.join(dumpDir,"scatterPlot_"+trainMode+"_"+d+".png")
         #else:
         #    fileName = osp.join(dumpDir,"scatterPlot_test_"+d+".png")
-        plt.savefig(fileName,fmt='png',bbox_inches='tight')
+        plt.savefig(fileName,format='png',bbox_inches='tight')
 
 
 class AverageMeter(object):

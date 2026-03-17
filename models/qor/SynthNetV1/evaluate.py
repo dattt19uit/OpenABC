@@ -35,7 +35,7 @@ def plotChart(x,y,xlabel,ylabel,leg_label,title):
     plt.xlabel(xlabel, weight='bold')
     plt.ylabel(ylabel, weight='bold')
     plt.title(title,weight='bold')
-    plt.savefig(osp.join(DUMP_DIR,title+'.png'), fmt='png', bbox_inches='tight')
+    plt.savefig(osp.join(DUMP_DIR,title+'.png'), format='png', bbox_inches='tight')
 
 
 def evaluate_plot(model, device, dataloader):
