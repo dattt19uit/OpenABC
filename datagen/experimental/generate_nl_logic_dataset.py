@@ -499,14 +499,14 @@ def generate_dataset(out_dir: str, total: int, seed: int) -> None:
                 "outputs": spec.outputs,
                 "expr_map": spec.expr_map,
                 "meta": spec.meta,
-            }) + "\n")
+            }, ensure_ascii=False) + "\n")
 
             for prompt in _prompt_variants(spec.family, spec.width):
                 prompt_f.write(json.dumps({
                     "logic_id": spec.logic_id,
                     "lang": prompt["lang"],
                     "text": prompt["text"],
-                }) + "\n")
+                }, ensure_ascii=False) + "\n")
 
             verilog = _logic_to_verilog(spec)
             verilog_file = os.path.join(verilog_dir, f"{spec.logic_id}.v")
