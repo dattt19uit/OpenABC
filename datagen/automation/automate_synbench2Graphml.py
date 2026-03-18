@@ -61,20 +61,34 @@ def processAIGBench():
         nohupShellScriptFileWriter.write("nohup "+shellScript+" > log_"+des+".txt 2>&1 &\n")
     nohupShellScriptFileWriter.close()
 
+def _read_designs(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+
+
 def setGlobalAndEnvironmentVars(cmdArgs):
-    global homeDir,benchDataFolder,scriptsDataFolder,libraryCellFolder,graphmlDataFolder
+    global homeDir, benchDataFolder, scriptsDataFolder, libraryCellFolder, graphmlDataFolder, designs, numSynthesizedDesigns, numSynthesisFlows
     homeDir = cmdArgs.home
     if not (os.path.exists(homeDir)):
         print("\nPlease rerun with appropriate paths")
-    benchDataFolder = os.path.join(homeDir,"OPENABC_DATASET","bench")
-    graphmlDataFolder = os.path.join(homeDir,"OPENABC_DATASET","graphml")
-    scriptsDataFolder = os.path.join(homeDir,"OPENABC_DATASET","synScripts")
-    libraryCellFolder = os.path.join(homeDir,"OPENABC_DATASET","lib")
+    benchDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "bench")
+    graphmlDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "graphml")
+    scriptsDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "synScripts")
+    libraryCellFolder = os.path.join(homeDir, "OPENABC_DATASET", "lib")
+    if cmdArgs.designs_file:
+        designs = _read_designs(cmdArgs.designs_file)
+    if cmdArgs.num_synth is not None:
+        numSynthesizedDesigns = cmdArgs.num_synth
+    if cmdArgs.num_flows is not None:
+        numSynthesisFlows = cmdArgs.num_flows
 
 def parseCmdLineArgs():
     parser = argparse.ArgumentParser(prog='AUTOMATE SYNTHESIS FLOW', description="Circuit characteristics")
     parser.add_argument('--version',action='version', version='1.0.0')
     parser.add_argument('--home',required=True, help="OpenABC dataset home path")
+    parser.add_argument('--designs-file', help="Optional path to designs.txt")
+    parser.add_argument('--num-synth', type=int, help="Override number of synthesis runs")
+    parser.add_argument('--num-flows', type=int, help="Override number of synthesis steps per run")
     return parser.parse_args()
 
 def main():

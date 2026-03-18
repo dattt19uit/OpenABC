@@ -53,21 +53,32 @@ def genSynthesisScripts():
             scriptFile.close()
 
 
+def _read_designs(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+
+
 def setGlobalAndEnvironmentVars(cmdArgs):
-    global homeDir, srcFolder, graphDataFolder,scriptsDataFolder,libraryCellFolder
+    global homeDir, srcFolder, graphDataFolder, scriptsDataFolder, libraryCellFolder, designs, numSynthesizedScript
     homeDir = cmdArgs.home
     srcFolder = cmdArgs.script
     if not (os.path.exists(homeDir) and os.path.exists(srcFolder)):
         print("\nPlease rerun with appropriate paths")
-    graphDataFolder = os.path.join(homeDir,"OPENABC_DATASET","bench")
-    scriptsDataFolder = os.path.join(homeDir,"OPENABC_DATASET","synScripts")
-    libraryCellFolder = os.path.join(homeDir,"OPENABC_DATASET","lib")
+    graphDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "bench")
+    scriptsDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "synScripts")
+    libraryCellFolder = os.path.join(homeDir, "OPENABC_DATASET", "lib")
+    if cmdArgs.designs_file:
+        designs = _read_designs(cmdArgs.designs_file)
+    if cmdArgs.num_scripts is not None:
+        numSynthesizedScript = cmdArgs.num_scripts
 
 def parseCmdLineArgs():
     parser = argparse.ArgumentParser(prog='SYNTHESIS RECIPE GENERATOR', description="Circuit characteristics")
     parser.add_argument('--version',action='version', version='1.0.0')
     parser.add_argument('--home',required=True, help="OpenABC dataset home path")
     parser.add_argument('--script', required=True, help="Sample script folder path of 1500 synthesis scripts")
+    parser.add_argument('--designs-file', help="Optional path to designs.txt")
+    parser.add_argument('--num-scripts', type=int, help="Override number of synthesis scripts")
     return parser.parse_args()
 
 def main():

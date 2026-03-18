@@ -26,19 +26,27 @@ def collectFinalStats():
         designScriptFile.write(cmd+"\n")
     designScriptFile.close()
 
+def _read_designs(path: str):
+    with open(path, "r", encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
+
+
 def setGlobalAndEnvironmentVars(cmdArgs):
-    global homeDir,benchDataFolder,statsDataFolder,graphmlDataFolder
+    global homeDir, benchDataFolder, statsDataFolder, graphmlDataFolder, designs
     homeDir = cmdArgs.home
     if not (os.path.exists(homeDir)):
         print("\nPlease rerun with appropriate paths")
-    benchDataFolder = os.path.join(homeDir,"OPENABC_DATASET","bench")
-    graphmlDataFolder = os.path.join(homeDir,"OPENABC_DATASET","graphml")
-    statsDataFolder = os.path.join(homeDir,"OPENABC_DATASET","statistics")
+    benchDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "bench")
+    graphmlDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "graphml")
+    statsDataFolder = os.path.join(homeDir, "OPENABC_DATASET", "statistics")
+    if cmdArgs.designs_file:
+        designs = _read_designs(cmdArgs.designs_file)
 
 def parseCmdLineArgs():
     parser = argparse.ArgumentParser(prog='AUTOMATE SYNTHESIS FLOW', description="Circuit characteristics")
     parser.add_argument('--version',action='version', version='1.0.0')
     parser.add_argument('--home',required=True, help="OpenABC dataset home path")
+    parser.add_argument('--designs-file', help="Optional path to designs.txt")
     return parser.parse_args()
 
 def main():
