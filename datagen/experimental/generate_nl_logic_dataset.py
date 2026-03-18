@@ -3,6 +3,8 @@ import hashlib
 import json
 import os
 import random
+import urllib.error
+import urllib.request
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Optional
 
@@ -176,6 +178,283 @@ EN_TEMPLATES = {
     ],
 }
 
+VN_USE_CASE_TEMPLATES = {
+    "and": [
+        "dùng làm tín hiệu enable khi cả a và b cùng bật",
+    ],
+    "or": [
+        "kích hoạt báo động nếu a hoặc b bật",
+    ],
+    "xor": [
+        "phát hiện a và b khác nhau",
+    ],
+    "nand": [
+        "tạo tín hiệu active-low khi cả a và b đều 1",
+    ],
+    "nor": [
+        "tạo tín hiệu active-low khi bất kỳ ngõ vào nào bật",
+    ],
+    "not": [
+        "đảo mức để tạo tín hiệu active-low từ a",
+    ],
+    "mux2": [
+        "chọn một trong hai nguồn dữ liệu {w} bit cho bus ra",
+    ],
+    "mux4": [
+        "chọn một trong bốn kênh dữ liệu {w} bit",
+    ],
+    "decoder2": [
+        "giải mã địa chỉ 2 bit để bật 1 trong 4 thiết bị",
+    ],
+    "decoder3": [
+        "giải mã địa chỉ 3 bit để bật 1 trong 8 thiết bị",
+    ],
+    "encoder4": [
+        "mã hóa 4 tín hiệu one-hot thành chỉ số 2 bit",
+    ],
+    "encoder8": [
+        "mã hóa 8 tín hiệu one-hot thành chỉ số 3 bit",
+    ],
+    "half_adder": [
+        "tính tổng 1 bit trong mạch đếm đơn giản",
+    ],
+    "full_adder": [
+        "tính tổng 1 bit với carry trong bộ cộng",
+    ],
+    "ripple_adder": [
+        "cộng hai số {w} bit trong datapath",
+    ],
+    "cmp_eq": [
+        "so sánh hai số {w} bit để kiểm tra bằng nhau",
+    ],
+    "cmp_gt": [
+        "kiểm tra số {w} bit a lớn hơn b",
+    ],
+    "cmp_lt": [
+        "kiểm tra số {w} bit a nhỏ hơn b",
+    ],
+}
+
+EN_USE_CASE_TEMPLATES = {
+    "and": [
+        "use as enable when both a and b are true",
+    ],
+    "or": [
+        "trigger an alarm if a or b is high",
+    ],
+    "xor": [
+        "detect whether a and b differ",
+    ],
+    "nand": [
+        "generate active-low when both a and b are 1",
+    ],
+    "nor": [
+        "generate active-low when any input is high",
+    ],
+    "not": [
+        "invert a to create an active-low control",
+    ],
+    "mux2": [
+        "select one of two {w}-bit data sources for output",
+    ],
+    "mux4": [
+        "select one of four {w}-bit channels",
+    ],
+    "decoder2": [
+        "decode a 2-bit address to enable 1 of 4 devices",
+    ],
+    "decoder3": [
+        "decode a 3-bit address to enable 1 of 8 devices",
+    ],
+    "encoder4": [
+        "encode 4 one-hot inputs into a 2-bit index",
+    ],
+    "encoder8": [
+        "encode 8 one-hot inputs into a 3-bit index",
+    ],
+    "half_adder": [
+        "compute a 1-bit sum in a simple counter",
+    ],
+    "full_adder": [
+        "compute a 1-bit sum with carry in an adder",
+    ],
+    "ripple_adder": [
+        "add two {w}-bit values in the datapath",
+    ],
+    "cmp_eq": [
+        "check equality of two {w}-bit values",
+    ],
+    "cmp_gt": [
+        "check whether a {w}-bit value a is greater than b",
+    ],
+    "cmp_lt": [
+        "check whether a {w}-bit value a is less than b",
+    ],
+}
+
+VN_SPEC_LONG_TEMPLATE = """Hãy tạo một module Verilog thuần combinational circuit (không dùng clock, không dùng reg cho output trừ khi cần always @*).
+
+Yêu cầu:
+- Tên module: {module_name}
+- Inputs: {inputs_desc}
+- Outputs: {outputs_desc}
+- Chức năng: {function_desc}
+
+Hãy viết code theo kiểu:
+- Sử dụng assign cho các biểu thức đơn giản
+- Hoặc always @(*) với if/case cho logic phức tạp hơn
+- Phải là purely combinational (không có latch, không có combinatorial loop)
+- Thêm comment giải thích từng phần
+- Module phải có tên chính xác, port list rõ ràng
+- Không cần testbench trừ khi tôi yêu cầu sau"""
+
+EN_SPEC_LONG_TEMPLATE = """Please create a purely combinational Verilog module (no clock, no output reg unless always @* is needed).
+
+Requirements:
+- Module name: {module_name}
+- Inputs: {inputs_desc}
+- Outputs: {outputs_desc}
+- Function: {function_desc}
+
+Please write the code as:
+- Use assign for simple expressions
+- Or always @(*) with if/case for more complex logic
+- Must be purely combinational (no latch, no combinational loop)
+- Add comments explaining each part
+- Module name and port list must be exact
+- No testbench unless I ask later"""
+
+
+def _parse_csv(text: str) -> List[str]:
+    return [item.strip() for item in text.split(",") if item.strip()]
+
+
+def _normalize_lmstudio_endpoint(endpoint: str) -> str:
+    endpoint = endpoint.strip().rstrip("/")
+    if endpoint.endswith("/chat/completions"):
+        return endpoint
+    if endpoint.endswith("/v1"):
+        return f"{endpoint}/chat/completions"
+    return f"{endpoint}/v1/chat/completions"
+
+
+def _lmstudio_models_endpoint(endpoint: str) -> str:
+    chat_endpoint = _normalize_lmstudio_endpoint(endpoint)
+    return chat_endpoint[: -len("/chat/completions")] + "/models"
+
+
+def _extract_chat_content(response_json: Dict) -> Optional[str]:
+    choices = response_json.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return None
+    message = choices[0].get("message", {})
+    content = message.get("content")
+    if isinstance(content, str):
+        return content.strip()
+    if isinstance(content, list):
+        text_parts = []
+        for part in content:
+            if isinstance(part, dict) and part.get("type") == "text":
+                text_parts.append(part.get("text", ""))
+        merged = "".join(text_parts).strip()
+        return merged if merged else None
+    return None
+
+
+def _detect_lmstudio_model(endpoint: str, timeout_sec: int, api_key: Optional[str] = None) -> str:
+    models_endpoint = _lmstudio_models_endpoint(endpoint)
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    req = urllib.request.Request(models_endpoint, headers=headers, method="GET")
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"LM Studio model discovery failed (HTTP {exc.code}): {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"LM Studio model discovery failed: {exc}") from exc
+
+    models = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(models, list) or not models:
+        raise RuntimeError("LM Studio returned no loaded models at /v1/models")
+
+    first_id = models[0].get("id")
+    if not isinstance(first_id, str) or not first_id.strip():
+        raise RuntimeError("LM Studio model list does not contain a valid model id")
+    return first_id.strip()
+
+
+def _rewrite_prompt_text_lmstudio(
+    text: str,
+    lang: str,
+    style: str,
+    endpoint: str,
+    model: str,
+    timeout_sec: int,
+    min_chars: int,
+    max_chars: int,
+    api_key: Optional[str] = None,
+) -> str:
+    chat_endpoint = _normalize_lmstudio_endpoint(endpoint)
+    system_text = (
+        "You rewrite prompts for Verilog code generation. "
+        "Preserve technical meaning and required constraints."
+    )
+    user_text = (
+        f"Rewrite this prompt in language '{lang}' and keep style '{style}'.\n"
+        f"Target length: {min_chars}-{max_chars} characters (medium length).\n"
+        "Rules:\n"
+        "- Keep module name exactly unchanged if present.\n"
+        "- Keep function/logic intent unchanged.\n"
+        "- Keep combinational-only requirement if present.\n"
+        "- Keep concise and remove repetition.\n"
+        "- Return only the rewritten prompt text.\n\n"
+        f"Original prompt:\n{text}"
+    )
+    payload = {
+        "model": model,
+        "temperature": 0.1,
+        "messages": [
+            {"role": "system", "content": system_text},
+            {"role": "user", "content": user_text},
+        ],
+    }
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    req = urllib.request.Request(
+        chat_endpoint,
+        data=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            response_json = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"LM Studio rewrite failed (HTTP {exc.code}): {detail}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"LM Studio rewrite failed: {exc}") from exc
+
+    rewritten = _extract_chat_content(response_json)
+    if not rewritten:
+        raise RuntimeError("LM Studio returned empty rewrite content")
+    return rewritten
+
+
+def _style_target_range(style: str, min_chars: int, max_chars: int) -> Tuple[int, int]:
+    if style == "spec":
+        return max(20, min_chars // 2), max(80, min(max_chars, 120))
+    if style == "use_case":
+        return max(30, min_chars), max(100, min(max_chars, 160))
+    if style == "spec_long":
+        return max(90, min_chars + 40), max(180, min(max_chars + 60, 320))
+    return min_chars, max_chars
+
 
 def _hash_text(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
@@ -305,12 +584,101 @@ def _logic_to_verilog(spec: LogicSpec) -> str:
     return "\n".join(lines)
 
 
-def _prompt_variants(family: str, width: int) -> List[Dict[str, str]]:
+def _inputs_desc(inputs: List[str]) -> str:
+    if not inputs:
+        return "(none)"
+    return ", ".join([f"input {name}" for name in inputs])
+
+
+def _outputs_desc(outputs: List[str]) -> str:
+    if not outputs:
+        return "(none)"
+    return ", ".join([f"output {name}" for name in outputs])
+
+
+def _function_desc(family: str, width: int) -> str:
+    if family == "and":
+        return "y = a AND b"
+    if family == "or":
+        return "y = a OR b"
+    if family == "xor":
+        return "y = a XOR b"
+    if family == "nand":
+        return "y = NOT(a AND b)"
+    if family == "nor":
+        return "y = NOT(a OR b)"
+    if family == "not":
+        return "y = NOT a"
+    if family == "mux2":
+        return "y = (s==0)? d0 : d1, each bit independently"
+    if family == "mux4":
+        return "y selects one of d0,d1,d2,d3 by s1,s0, each bit independently"
+    if family == "decoder2":
+        return "y0..y3 one-hot decode of a1,a0"
+    if family == "decoder3":
+        return "y0..y7 one-hot decode of a2,a1,a0"
+    if family == "encoder4":
+        return "encode one-hot d0..d3 to y[1:0]"
+    if family == "encoder8":
+        return "encode one-hot d0..d7 to y[2:0]"
+    if family == "half_adder":
+        return "sum = a XOR b, cout = a AND b"
+    if family == "full_adder":
+        return "sum = a XOR b XOR cin, cout = majority(a,b,cin)"
+    if family == "ripple_adder":
+        return f"add two {width}-bit numbers a and b, outputs sum[0..{width-1}] and cout"
+    if family == "cmp_eq":
+        return f"y = 1 if a == b for {width}-bit inputs"
+    if family == "cmp_gt":
+        return f"y = 1 if a > b for {width}-bit inputs"
+    if family == "cmp_lt":
+        return f"y = 1 if a < b for {width}-bit inputs"
+    return "implement the specified logic"
+
+
+def _prompt_variants(
+    family: str,
+    width: int,
+    inputs: List[str],
+    outputs: List[str],
+    logic_id: str,
+    include_spec_long: bool = True,
+) -> List[Dict[str, str]]:
     prompts = []
     for tmpl in VN_TEMPLATES.get(family, []):
-        prompts.append({"lang": "vi", "text": tmpl.format(w=width)})
+        prompts.append({"lang": "vi", "text": tmpl.format(w=width), "style": "spec"})
     for tmpl in EN_TEMPLATES.get(family, []):
-        prompts.append({"lang": "en", "text": tmpl.format(w=width)})
+        prompts.append({"lang": "en", "text": tmpl.format(w=width), "style": "spec"})
+    for tmpl in VN_USE_CASE_TEMPLATES.get(family, []):
+        prompts.append({"lang": "vi", "text": tmpl.format(w=width), "style": "use_case"})
+    for tmpl in EN_USE_CASE_TEMPLATES.get(family, []):
+        prompts.append({"lang": "en", "text": tmpl.format(w=width), "style": "use_case"})
+
+    if include_spec_long:
+        module_name = f"design_{logic_id}"
+        inputs_desc = _inputs_desc(inputs)
+        outputs_desc = _outputs_desc(outputs)
+        function_desc = _function_desc(family, width)
+        prompts.append({
+            "lang": "vi",
+            "text": VN_SPEC_LONG_TEMPLATE.format(
+                module_name=module_name,
+                inputs_desc=inputs_desc,
+                outputs_desc=outputs_desc,
+                function_desc=function_desc,
+            ),
+            "style": "spec_long",
+        })
+        prompts.append({
+            "lang": "en",
+            "text": EN_SPEC_LONG_TEMPLATE.format(
+                module_name=module_name,
+                inputs_desc=inputs_desc,
+                outputs_desc=outputs_desc,
+                function_desc=function_desc,
+            ),
+            "style": "spec_long",
+        })
     return prompts
 
 
@@ -433,9 +801,9 @@ def _gen_adders() -> List[LogicSpec]:
     return specs
 
 
-def _gen_comparators() -> List[LogicSpec]:
+def _gen_comparators(max_width: int) -> List[LogicSpec]:
     specs = []
-    for w in range(1, 9):
+    for w in range(1, max_width + 1):
         a_bits = _bits("a", w)
         b_bits = _bits("b", w)
         eq_expr = _cmp_eq_expr(a_bits, b_bits)
@@ -463,7 +831,19 @@ def _validate_specs(specs: List[LogicSpec]) -> List[LogicSpec]:
     return valid
 
 
-def generate_dataset(out_dir: str, total: int, seed: int) -> None:
+def generate_dataset(
+    out_dir: str,
+    total: int,
+    seed: int,
+    lmstudio_endpoint: Optional[str] = None,
+    lmstudio_model: Optional[str] = None,
+    lmstudio_timeout_sec: int = 60,
+    rewrite_styles: Optional[List[str]] = None,
+    min_prompt_chars: int = 40,
+    max_prompt_chars: int = 180,
+    lmstudio_api_key: Optional[str] = None,
+    include_spec_long: bool = True,
+) -> None:
     random.seed(seed)
     all_specs = []
     all_specs.extend(_gen_basic_gates())
@@ -471,11 +851,35 @@ def generate_dataset(out_dir: str, total: int, seed: int) -> None:
     all_specs.extend(_gen_decoders())
     all_specs.extend(_gen_encoders())
     all_specs.extend(_gen_adders())
-    all_specs.extend(_gen_comparators())
+
+    # Scale comparator width so the candidate pool is large enough for the requested total.
+    # Each comparator width contributes 3 specs: cmp_eq, cmp_gt, cmp_lt.
+    non_comparator_count = len(all_specs)
+    needed_comparator_specs = max(0, total - non_comparator_count)
+    comparator_max_width = max(8, (needed_comparator_specs + 2) // 3)
+    all_specs.extend(_gen_comparators(comparator_max_width))
+
     all_specs = _validate_specs(all_specs)
+    if len(all_specs) < total:
+        raise ValueError(
+            f"Unable to generate {total} unique designs; only {len(all_specs)} available."
+        )
+
+    rewrite_enabled = bool(lmstudio_endpoint)
+    rewrite_style_set = set(rewrite_styles or [])
+    resolved_model = lmstudio_model
+    if rewrite_enabled and not resolved_model:
+        resolved_model = _detect_lmstudio_model(
+            lmstudio_endpoint,
+            lmstudio_timeout_sec,
+            lmstudio_api_key,
+        )
+
+    rewrite_successes = 0
+    rewrite_failures = 0
 
     random.shuffle(all_specs)
-    selected = all_specs[: min(total, len(all_specs))]
+    selected = all_specs[:total]
 
     os.makedirs(out_dir, exist_ok=True)
     verilog_dir = os.path.join(out_dir, "verilog")
@@ -501,11 +905,43 @@ def generate_dataset(out_dir: str, total: int, seed: int) -> None:
                 "meta": spec.meta,
             }, ensure_ascii=False) + "\n")
 
-            for prompt in _prompt_variants(spec.family, spec.width):
+            for prompt in _prompt_variants(
+                spec.family,
+                spec.width,
+                spec.inputs,
+                spec.outputs,
+                spec.logic_id,
+                include_spec_long=include_spec_long,
+            ):
+                text = prompt["text"]
+                if rewrite_enabled and prompt["style"] in rewrite_style_set:
+                    style_min, style_max = _style_target_range(
+                        prompt["style"],
+                        min_prompt_chars,
+                        max_prompt_chars,
+                    )
+                    try:
+                        rewritten = _rewrite_prompt_text_lmstudio(
+                            text=text,
+                            lang=prompt["lang"],
+                            style=prompt["style"],
+                            endpoint=lmstudio_endpoint,
+                            model=resolved_model,
+                            timeout_sec=lmstudio_timeout_sec,
+                            min_chars=style_min,
+                            max_chars=style_max,
+                            api_key=lmstudio_api_key,
+                        )
+                        text = rewritten
+                        rewrite_successes += 1
+                    except RuntimeError:
+                        rewrite_failures += 1
+
                 prompt_f.write(json.dumps({
                     "logic_id": spec.logic_id,
                     "lang": prompt["lang"],
-                    "text": prompt["text"],
+                    "style": prompt["style"],
+                    "text": text,
                 }, ensure_ascii=False) + "\n")
 
             verilog = _logic_to_verilog(spec)
@@ -522,18 +958,82 @@ def generate_dataset(out_dir: str, total: int, seed: int) -> None:
 
             designs_f.write(spec.logic_id + "\n")
 
+    if rewrite_enabled:
+        print(
+            f"LM Studio rewrite summary: success={rewrite_successes}, failed={rewrite_failures}"
+        )
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate NL→logic dataset with Verilog outputs")
     parser.add_argument("--out", required=True, help="Output directory (e.g., datasets/nl_verilog)")
     parser.add_argument("--total", type=int, default=200, help="Total number of designs to generate")
     parser.add_argument("--seed", type=int, default=7, help="Random seed")
+    parser.add_argument(
+        "--lmstudio-endpoint",
+        default="",
+        help="LM Studio OpenAI-compatible endpoint (e.g., http://127.0.0.1:1234)",
+    )
+    parser.add_argument(
+        "--lmstudio-model",
+        default="",
+        help="Model id for LM Studio. If omitted, auto-detect from /v1/models",
+    )
+    parser.add_argument(
+        "--lmstudio-timeout-sec",
+        type=int,
+        default=60,
+        help="Timeout for each LM Studio request in seconds",
+    )
+    parser.add_argument(
+        "--rewrite-styles",
+        default="spec,use_case",
+        help="Comma-separated styles to rewrite via LM Studio",
+    )
+    parser.add_argument(
+        "--min-prompt-chars",
+        type=int,
+        default=40,
+        help="Minimum target chars for rewritten prompts",
+    )
+    parser.add_argument(
+        "--max-prompt-chars",
+        type=int,
+        default=180,
+        help="Maximum target chars for rewritten prompts",
+    )
+    parser.add_argument(
+        "--lmstudio-api-key",
+        default="",
+        help="Optional Bearer token for LM Studio compatible API",
+    )
+    parser.add_argument(
+        "--include-spec-long",
+        action="store_true",
+        help="Include spec_long prompts (disabled by default)",
+    )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    generate_dataset(args.out, args.total, args.seed)
+    rewrite_styles = _parse_csv(args.rewrite_styles)
+    lmstudio_endpoint = args.lmstudio_endpoint.strip() or None
+    lmstudio_model = args.lmstudio_model.strip() or None
+    lmstudio_api_key = args.lmstudio_api_key.strip() or None
+    generate_dataset(
+        out_dir=args.out,
+        total=args.total,
+        seed=args.seed,
+        lmstudio_endpoint=lmstudio_endpoint,
+        lmstudio_model=lmstudio_model,
+        lmstudio_timeout_sec=args.lmstudio_timeout_sec,
+        rewrite_styles=rewrite_styles,
+        min_prompt_chars=args.min_prompt_chars,
+        max_prompt_chars=args.max_prompt_chars,
+        lmstudio_api_key=lmstudio_api_key,
+        include_spec_long=args.include_spec_long,
+    )
 
 
 if __name__ == "__main__":
